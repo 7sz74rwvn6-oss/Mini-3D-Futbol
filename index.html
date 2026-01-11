@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Mini 3D Futbol</title>
+<style>
+html, body { margin:0; padding:0; overflow:hidden; height:100%; width:100%; }
+body { font-family: Arial; background:#2c3e50; }
+#score {
+  position:absolute; top:20px; left:50%; transform:translateX(-50%);
+  font-size:48px; color:white; z-index:2; transition: all 0.2s;
+}
+#joystickBase {
+  position: absolute; bottom:20px; left:20px; width:140px; height:140px;
+  background: rgba(255,255,255,0.2); border-radius:50%; touch-action:none; z-index:2;
+}
+#joystickStick {
+  position: absolute; width:70px; height:70px;
+  background: rgba(255,255,255,0.5); border-radius:50%; top:35px; left:35px; touch-action:none; z-index:2;
+}
+</style>
+</head>
+<body>
+<div id="score">Gol: 0</div>
+<div id="joystickBase"><div id="joystickStick"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+<script>
+let score = 0;
+const scoreEl = document.getElementById('score');
+
+// Sahne ve renderer
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2c3e50);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0,15,20);
+camera.lookAt(0,0,0);
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Işık
+const light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(0,20,10);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff,0.4));
+
+// Saha
+const field = new THREE.Mesh(
+  new THREE.PlaneGeometry(30,20),
+  new THREE.MeshBasicMaterial({color:0x27ae60})
+);
+field.rotation.x = -Math.PI/2;
+scene.add(field);
+
+// Top
+const ball = new THREE.Mesh(
+  new THREE.SphereGeometry(0.5,16,16),
+  new THREE.MeshBasicMaterial({color:0xf1c40f})
+);
+ball.position.set(0,0.5,8);
+scene.add(ball);
+
+// Kaleci
+const keeper = new THREE.Mesh(
+  new THREE.BoxGeometry(3,2,0.5),
+  new THREE.MeshBasicMaterial({color:0xe74c3c})
+);
+keeper.position.set(0,1,-9);
+scene.add(keeper);
+
+// Gol bölgesi
+const goalZ = -10;
+
+// Joystick
+const stick = document.getElementById('joystickStick');
+const base = document.getElementById('joystickBase');
+let joystick={x:0,y:0,active:false};
+
+stick.addEventListener('touchstart', e=>{ joystick.active=true; });
+stick.addEventListener('touchend', e=>{
+  joystick.active=false;
+  joystick.x=0;
+  joystick.y=0;
+  stick.style.left='35px';
+  stick.style.top='35px';
+});
+stick.addEventListener('touchmove', e=>{
+  if(!joystick.active) return;
+  const touch=e.touches[0];
+  const rect=base.getBoundingClientRect();
+  let dx = touch.clientX-(rect.left+rect.width/2);
+  let dy = touch.clientY-(rect.top+rect.height/2);
+  const max=rect.width/2;
+  if(dx>max) dx=max;
+  if(dx<-max) dx=-max;
+  if(dy>max) dy=max;
+  if(dy<-max) dy=-max;
+  joystick.x = dx/max;
+  joystick.y = dy/max;
+  stick.style.left=(dx+70-35)+'px';
+  stick.style.top=(dy+70-35)+'px';
+  e.preventDefault();
+},{passive:false});
+
+// Kaleci
+function moveKeeper(){
+  keeper.position.x = Math.sin(Date.now()*0.002)*3;
+}
+
+// Animasyon
+function animate(){
+  requestAnimationFrame(animate);
+
+  ball.position.x += joystick.x*0.2;
+  ball.position.z -= joystick.y*0.2;
+
+  // sınırlar
+  ball.position.x = Math.max(Math.min(ball.position.x,14),-14);
+  ball.position.z = Math.max(Math.min(ball.position.z,9),-9);
+
+  moveKeeper();
+
+  // Gol
+  if(ball.position.z<=goalZ && Math.abs(ball.position.x - keeper.position.x)>1.5){
+    score++;
+    scoreEl.innerText="Gol: "+score;
+    scoreEl.style.transform='scale(1.5)';
+    setTimeout(()=>{scoreEl.style.transform='scale(1)';},200);
+    ball.position.set(0,0.5,8);
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html<// Oyunun başında
+const crowdSound = new Audio('assets/cheer.mp3');
+crowdSound.loop = true; // sürekli tekrar etsin
+crowdSound.volume = 0.3; // sesi çok yüksek olmasın
+crowdSound.play().catch(e=>{
+  console.log("Oynatma için kullanıcı etkileşimi gerekiyor");
+});
