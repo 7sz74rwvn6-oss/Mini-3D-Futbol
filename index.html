@@ -2,114 +2,73 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>Mini Futbol Basit</title>
+<title>Kelime Bulmaca</title>
 <style>
-body { margin:0; padding:0; overflow:hidden; background:#27ae60; font-family:Arial; }
-#score { position:absolute; top:20px; left:50%; transform:translateX(-50%); font-size:48px; color:white; z-index:2; }
-#gameArea { position:relative; width:100vw; height:100vh; overflow:hidden; }
-#ball, #keeper { position:absolute; border-radius:50%; }
-#ball { width:40px; height:40px; background:#f1c40f; }
-#keeper { width:60px; height:60px; background:#e74c3c; top:50px; }
-#joystickBase { position:absolute; bottom:20px; left:20px; width:140px; height:140px; background: rgba(255,255,255,0.2); border-radius:50%; z-index:2; }
-#joystickStick { position:absolute; width:70px; height:70px; background: rgba(255,255,255,0.5); border-radius:50%; top:35px; left:35px; }
-#shootBtn { position:absolute; bottom:30px; right:30px; width:100px; height:100px; background: rgba(255,0,0,0.5); border-radius:50%; font-size:24px; color:white; border:none; z-index:2; }
+body { margin:0; padding:0; font-family: Arial; background:#2c3e50; color:white; text-align:center; }
+#score { font-size:24px; margin-top:10px; }
+#letters { display:flex; flex-wrap:wrap; justify-content:center; margin:20px; }
+.letter { width:50px; height:50px; background:#3498db; margin:5px; display:flex; justify-content:center; align-items:center; font-size:24px; border-radius:5px; user-select:none; touch-action: manipulation; }
+#selected { margin:20px; font-size:28px; min-height:40px; }
+#checkBtn { font-size:24px; padding:10px 20px; margin:10px; }
 </style>
 </head>
 <body>
-<div id="score">Gol: 0</div>
-<div id="gameArea">
-  <div id="ball"></div>
-  <div id="keeper"></div>
-  <div id="joystickBase"><div id="joystickStick"></div></div>
-  <button id="shootBtn">Şut</button>
-</div>
+
+<h1>Kelime Bulmaca</h1>
+<div id="score">Skor: 0</div>
+<div id="letters"></div>
+<div id="selected"></div>
+<button id="checkBtn">Kontrol Et</button>
 
 <script>
-const ball = document.getElementById('ball');
-const keeper = document.getElementById('keeper');
-const joystickBase = document.getElementById('joystickBase');
-const stick = document.getElementById('joystickStick');
-const shootBtn = document.getElementById('shootBtn');
-const scoreEl = document.getElementById('score');
-
+const words = ["ELMA","ARABA","KEDI","BILGISAYAR","FUTBOL"];
 let score = 0;
-let ballPos = {x:window.innerWidth/2-20, y:window.innerHeight-100};
-let keeperPos = {x:window.innerWidth/2-30, y:50};
-let joystick={x:0,y:0,active:false};
-let shootSpeed = 0;
+let selectedWord = "";
+let correctWord = words[Math.floor(Math.random()*words.length)];
 
-// Joystick kontrol
-stick.addEventListener('touchstart', ()=>joystick.active=true);
-stick.addEventListener('touchend', ()=>{
-  joystick.active=false; joystick.x=0; joystick.y=0;
-  stick.style.left='35px'; stick.style.top='35px';
-});
-stick.addEventListener('touchmove', e=>{
-  if(!joystick.active) return;
-  const touch = e.touches[0];
-  const rect = joystickBase.getBoundingClientRect();
-  let dx = touch.clientX-(rect.left+rect.width/2);
-  let dy = touch.clientY-(rect.top+rect.height/2);
-  const max = rect.width/2;
-  if(dx>max) dx=max; if(dx<-max) dx=-max;
-  if(dy>max) dy=max; if(dy<-max) dy=-max;
-  joystick.x = dx/max;
-  joystick.y = dy/max;
-  // stick hareket yönünü gösterir
-  stick.style.left = (dx+35)+'px';
-  stick.style.top = (dy+35)+'px';
-  e.preventDefault();
-},{passive:false});
+const lettersDiv = document.getElementById("letters");
+const selectedDiv = document.getElementById("selected");
+const scoreDiv = document.getElementById("score");
+const checkBtn = document.getElementById("checkBtn");
 
-// Şut tuşu
-shootBtn.addEventListener('touchstart', ()=>{
-  shootSpeed = 15; // top ileri hareket
+// Harfleri karıştır
+const shuffled = correctWord.split("").sort(()=>Math.random()-0.5);
+shuffled.forEach(letter=>{
+  const div = document.createElement("div");
+  div.className="letter";
+  div.innerText=letter;
+  div.addEventListener("click", ()=>{
+    selectedWord+=letter;
+    selectedDiv.innerText=selectedWord;
+  });
+  lettersDiv.appendChild(div);
 });
 
-// Pozisyon güncelleme
-function updatePositions(){
-  ball.style.left = ballPos.x+'px';
-  ball.style.top = ballPos.y+'px';
-  keeper.style.left = keeperPos.x+'px';
-  keeper.style.top = keeperPos.y+'px';
-}
-
-// Oyun döngüsü
-function gameLoop(){
-  // Joystick ile top hareketi
-  ballPos.x += joystick.x*5;
-  ballPos.y -= joystick.y*5;
-
-  // Şut hareketi
-  if(shootSpeed>0){
-    ballPos.y -= shootSpeed;
-    shootSpeed *= 0.9; // yavaşça durur
-  }
-
-  // Saha sınırları
-  ballPos.x = Math.max(Math.min(ballPos.x, window.innerWidth-40),0);
-  ballPos.y = Math.max(Math.min(ballPos.y, window.innerHeight-40),0);
-
-  // Kaleci sola-sağa basit hareket
-  keeperPos.x = window.innerWidth/2 + Math.sin(Date.now()*0.003)*200;
-
-  // Gol kontrolü
-  if(ballPos.y <= keeperPos.y + 60 && Math.abs(ballPos.x - (keeperPos.x+30))>30){
+checkBtn.addEventListener("click", ()=>{
+  if(selectedWord === correctWord){
     score++;
-    scoreEl.innerText = "Gol: "+score;
-    scoreEl.style.transform='scale(1.5)';
-    setTimeout(()=>scoreEl.style.transform='scale(1)',200);
-    ballPos = {x:window.innerWidth/2-20, y:window.innerHeight-100};
-    shootSpeed=0;
+    alert("Doğru! Skor: "+score);
+  } else {
+    alert("Yanlış! Doğru kelime: "+correctWord);
   }
-
-  updatePositions();
-  requestAnimationFrame(gameLoop);
-}
-
-// Başlangıç
-updatePositions();
-requestAnimationFrame(gameLoop);
+  // Yeni kelime
+  selectedWord="";
+  selectedDiv.innerText="";
+  lettersDiv.innerHTML="";
+  correctWord = words[Math.floor(Math.random()*words.length)];
+  const shuffled = correctWord.split("").sort(()=>Math.random()-0.5);
+  shuffled.forEach(letter=>{
+    const div = document.createElement("div");
+    div.className="letter";
+    div.innerText=letter;
+    div.addEventListener("click", ()=>{
+      selectedWord+=letter;
+      selectedDiv.innerText=selectedWord;
+    });
+    lettersDiv.appendChild(div);
+  });
+});
 </script>
+
 </body>
 </html>
