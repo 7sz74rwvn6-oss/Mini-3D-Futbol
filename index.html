@@ -2,22 +2,29 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>3D Mini Futbol + Şut</title>
+<title>Mini Futbol 2D</title>
 <style>
-html, body { margin:0; padding:0; overflow:hidden; height:100%; width:100%; }
-body { font-family: Arial; background:#2c3e50; }
+body { margin:0; padding:0; overflow:hidden; background:#2c3e50; font-family:Arial; }
 #score {
   position:absolute; top:20px; left:50%; transform:translateX(-50%);
   font-size:48px; color:white; z-index:2; transition: all 0.2s;
 }
+#gameArea {
+  position:relative; width:100vw; height:100vh; overflow:hidden; background:#27ae60;
+}
+#ball, #keeper {
+  position:absolute; width:40px; height:40px; border-radius:50%;
+}
+#ball { background:#f1c40f; }
+#keeper { background:#e74c3c; width:60px; height:60px; top:50px; }
 #joystickBase {
-  position: absolute; bottom:20px; left:20px; width:140px; height:140px;
+  position:absolute; bottom:20px; left:20px; width:140px; height:140px;
   background: rgba(255,255,255,0.2); border-radius:50%; touch-action:none; z-index:2;
   display:none;
 }
 #joystickStick {
-  position: absolute; width:70px; height:70px;
-  background: rgba(255,255,255,0.5); border-radius:50%; top:35px; left:35px; touch-action:none;
+  position:absolute; width:70px; height:70px; background: rgba(255,255,255,0.5);
+  border-radius:50%; top:35px; left:35px; touch-action:none;
 }
 #startBtn {
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -32,151 +39,113 @@ body { font-family: Arial; background:#2c3e50; }
 </head>
 <body>
 <div id="score">Gol: 0</div>
-<div id="joystickBase"><div id="joystickStick"></div></div>
-<button id="startBtn">Başla</button>
-<button id="shootBtn">Şut</button>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+<div id="gameArea">
+  <div id="ball"></div>
+  <div id="keeper"></div>
+  <div id="joystickBase"><div id="joystickStick"></div></div>
+  <button id="startBtn">Başla</button>
+  <button id="shootBtn">Şut</button>
+</div>
 
 <script>
-let score = 0;
-const scoreEl = document.getElementById('score');
+const ball = document.getElementById('ball');
+const keeper = document.getElementById('keeper');
 const joystickBase = document.getElementById('joystickBase');
 const stick = document.getElementById('joystickStick');
 const startBtn = document.getElementById('startBtn');
 const shootBtn = document.getElementById('shootBtn');
+const scoreEl = document.getElementById('score');
+const gameArea = document.getElementById('gameArea');
+
+let score = 0;
+let ballPos = {x:window.innerWidth/2-20, y:window.innerHeight-100};
+let keeperPos = {x:window.innerWidth/2-30, y:50};
+let joystick={x:0,y:0,active:false};
+let shootSpeed = 0;
 
 // Taraftar sesi
 const crowdSound = new Audio('assets/cheer.mp3');
-crowdSound.loop = true;
-crowdSound.volume = 0.3;
+crowdSound.loop=true;
+crowdSound.volume=0.3;
+
+function updatePositions(){
+  ball.style.left = ballPos.x+'px';
+  ball.style.top = ballPos.y+'px';
+  keeper.style.left = keeperPos.x+'px';
+  keeper.style.top = keeperPos.y+'px';
+}
 
 // Başlat butonu
-startBtn.addEventListener('click', () => {
-    startBtn.style.display='none';
-    joystickBase.style.display='block';
-    shootBtn.style.display='block';
-    crowdSound.play().catch(()=>{console.log("Kullanıcı etkileşimi gerekli")});
-    initGame();
+startBtn.addEventListener('click', ()=>{
+  startBtn.style.display='none';
+  joystickBase.style.display='block';
+  shootBtn.style.display='block';
+  crowdSound.play().catch(()=>console.log("Kullanıcı etkileşimi gerekli"));
+  requestAnimationFrame(gameLoop);
 });
 
-// Joystick kontrol
-let joystick = {x:0,y:0,active:false};
+// Joystick
 stick.addEventListener('touchstart', ()=>joystick.active=true);
 stick.addEventListener('touchend', ()=>{
-    joystick.active=false; joystick.x=0; joystick.y=0;
-    stick.style.left='35px'; stick.style.top='35px';
+  joystick.active=false; joystick.x=0; joystick.y=0;
+  stick.style.left='35px'; stick.style.top='35px';
 });
 stick.addEventListener('touchmove', e=>{
-    if(!joystick.active) return;
-    const touch=e.touches[0];
-    const rect=joystickBase.getBoundingClientRect();
-    let dx = touch.clientX-(rect.left+rect.width/2);
-    let dy = touch.clientY-(rect.top+rect.height/2);
-    const max=rect.width/2;
-    if(dx>max) dx=max; if(dx<-max) dx=-max;
-    if(dy>max) dy=max; if(dy<-max) dy=-max;
-    joystick.x = dx/max;
-    joystick.y = dy/max;
-    stick.style.left=(dx+70-35)+'px';
-    stick.style.top=(dy+70-35)+'px';
-    e.preventDefault();
+  if(!joystick.active) return;
+  const touch=e.touches[0];
+  const rect=joystickBase.getBoundingClientRect();
+  let dx = touch.clientX-(rect.left+rect.width/2);
+  let dy = touch.clientY-(rect.top+rect.height/2);
+  const max=rect.width/2;
+  if(dx>max) dx=max; if(dx<-max) dx=-max;
+  if(dy>max) dy=max; if(dy<-max) dy=-max;
+  joystick.x = dx/max;
+  joystick.y = dy/max;
+  stick.style.left=(dx+70-35)+'px';
+  stick.style.top=(dy+70-35)+'px';
+  e.preventDefault();
 },{passive:false});
 
-// Oyun başlat
-function initGame(){
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2c3e50);
+// Şut tuşu
+shootBtn.addEventListener('touchstart', ()=>{
+  shootSpeed = 15; // px/frame ileri hız
+});
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    camera.position.set(0,15,20);
-    camera.lookAt(0,0,0);
+// Oyun döngüsü
+function gameLoop(){
+  // Top joystick ile hareket
+  ballPos.x += joystick.x*5;
+  ballPos.y -= joystick.y*5;
 
-    const renderer = new THREE.WebGLRenderer({antialias:false});
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+  // Şut hareketi
+  if(shootSpeed>0){
+    ballPos.y -= shootSpeed;
+    shootSpeed *= 0.9; // yavaşça durur
+  }
 
-    // Işık
-    const light = new THREE.DirectionalLight(0xffffff,1);
-    light.position.set(0,20,10);
-    scene.add(light);
-    scene.add(new THREE.AmbientLight(0xffffff,0.4));
+  // Saha sınırları
+  ballPos.x = Math.max(Math.min(ballPos.x, window.innerWidth-40),0);
+  ballPos.y = Math.max(Math.min(ballPos.y, window.innerHeight-40),0);
 
-    // Saha
-    const field = new THREE.Mesh(
-        new THREE.PlaneGeometry(30,20),
-        new THREE.MeshBasicMaterial({color:0x27ae60})
-    );
-    field.rotation.x = -Math.PI/2;
-    scene.add(field);
+  // Kaleci hareketi (basit sola-sağa)
+  keeperPos.x = window.innerWidth/2 + Math.sin(Date.now()*0.003)*200;
 
-    // Top
-    const ball = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5,16,16),
-        new THREE.MeshBasicMaterial({color:0xf1c40f})
-    );
-    ball.position.set(0,0.5,8);
-    scene.add(ball);
+  // Gol kontrolü (kaleciye çarpmıyorsa üst sınırı geçtiyse)
+  if(ballPos.y <= keeperPos.y + 60 && Math.abs(ballPos.x - (keeperPos.x+30))>30){
+    score++;
+    scoreEl.innerText = "Gol: "+score;
+    scoreEl.style.transform='scale(1.5)';
+    setTimeout(()=>scoreEl.style.transform='scale(1)',200);
+    ballPos = {x:window.innerWidth/2-20, y:window.innerHeight-100};
+    shootSpeed=0;
+  }
 
-    // Tek kaleci
-    const keeper = new THREE.Mesh(
-        new THREE.BoxGeometry(3,2,0.5),
-        new THREE.MeshBasicMaterial({color:0xe74c3c})
-    );
-    keeper.position.set(0,1,-9);
-    scene.add(keeper);
-
-    const goalZ = -10;
-    let shootSpeed = 0; // şut hızı
-
-    // Şut tuşu
-    shootBtn.addEventListener('touchstart', ()=>{
-        shootSpeed = 1.5; // top ileri doğru hızlı hareket edecek
-    });
-
-    // Kaleci hareketi
-    function moveKeeper(){ keeper.position.x = Math.sin(Date.now()*0.002)*3; }
-
-    // Animasyon
-    function animate(){
-        requestAnimationFrame(animate);
-
-        // Joystick ile top hareketi
-        ball.position.x += joystick.x*0.2;
-        ball.position.z -= joystick.y*0.2;
-
-        // Şut hareketi
-        if(shootSpeed>0){
-            ball.position.z -= shootSpeed;
-            shootSpeed *= 0.95; // yavaşça duruyor
-        }
-
-        // Saha sınırları
-        ball.position.x = Math.max(Math.min(ball.position.x,14),-14);
-        ball.position.z = Math.max(Math.min(ball.position.z,9),-9);
-
-        moveKeeper();
-
-        // Gol kontrolü
-        if(ball.position.z<=goalZ && Math.abs(ball.position.x-keeper.position.x)>1.5){
-            score++;
-            scoreEl.innerText = "Gol: "+score;
-            scoreEl.style.transform='scale(1.5)';
-            setTimeout(()=>{scoreEl.style.transform='scale(1)';},200);
-            ball.position.set(0,0.5,8);
-            shootSpeed=0;
-        }
-
-        renderer.render(scene,camera);
-    }
-    animate();
-
-    window.addEventListener('resize', ()=>{
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+  updatePositions();
+  requestAnimationFrame(gameLoop);
 }
+
+// Başlangıç pozisyonu
+updatePositions();
 </script>
 </body>
 </html>
